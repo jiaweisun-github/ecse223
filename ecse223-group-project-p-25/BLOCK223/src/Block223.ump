@@ -1,0 +1,301 @@
+namespace ca.mcgill.ecse223.block.model;
+
+use Block223PlayMode.ump;
+use Block223Persistence.ump;
+use Block223States.ump;
+
+class Block223 {
+   1 <@>- * User users;
+   1 <@>- * UserRole roles;
+   1 <@>- * Game games; 
+   public Game findGame(String name) {
+   	Game agame = null;
+	  for (Game game: getGames()) {
+		  if (game.getName().equals(name)) {
+			  agame = game;
+			  break;
+		  }
+	  }
+	  return agame;
+  }
+  	
+  public PlayedGame findPlayableGame(int id) {
+  	PlayedGame pgame = null;
+		for (PlayedGame playableGame: getPlayedGames()) {
+			if (playableGame.getId() == id) {
+				pgame = playableGame;
+				break;
+				
+			}
+		}
+		return pgame;
+  }
+}
+
+class User {
+    unique username;
+    1 -> 1..2 UserRole roles;
+    public static  String findUsername(UserRole player){
+	   String username = "";
+	   boolean found = false;
+	   for (Map.Entry<String, User> entry : usersByUsername.entrySet()) {
+		   for (UserRole role : entry.getValue().getRoles()) {
+			   if (role == player) break;
+			   username = entry.getKey();
+			   found = true;
+			   break;
+		   }
+		   if (found) break;
+	   }
+	   return username;
+    }
+    before constructor {
+    	if (aUsername == null || aUsername.equals("")) {
+    		throw new RuntimeException("The username must be specified.");
+    	}
+    }
+}
+
+class UserRole {
+   abstract;
+   password;
+   public String getUsername() {
+      return super.toString();
+   }
+   before constructor {
+   if (aPassword == null || aPassword.equals(""))
+   	throw new RuntimeException("The player password needs to be specified.");
+   	}
+}
+
+class Admin {
+   isA UserRole;
+}
+
+class Player {
+   isA UserRole;
+}
+
+class Game {
+   depend ca.mcgill.ecse223.block.application.*;
+   depend java.util.Random;
+   const Integer MIN_NR_LEVELS = 1;
+   const Integer MAX_NR_LEVELS = 99; // this is somewhat redundant because the max multiplicity is enforced by Umple
+   const Integer PLAY_AREA_SIDE = 390; // play area is now constant
+   const Integer WALL_PADDING = 10;
+   const Integer COLUMNS_PADDING = 5;
+   const Integer ROW_PADDING = 2;
+   unique name;
+   before constructor, setName {
+   	  Block223 block223 = Block223Application.getBlock223();
+	  if (aName == null || aName.length() == 0) {
+	     throw new RuntimeException("The name of a game must be specified.");
+	  }
+   }
+   before setName {
+     if (block223.findGame(aName) != null) {
+     	throw new RuntimeException("The name of a game must be unique.");
+     }
+   }
+   Integer nrBlocksPerLevel;
+   before constructor, setNrBlocksPerLevel {
+     if (aNrBlocksPerLevel <= 0) {
+     	throw new RuntimeException("The number of blocks per level must be greater than zero.");
+     }
+   }
+   before setNrBlocksPerLevel {
+     for (Level level: getLevels()) {
+     	if (aNrBlocksPerLevel < level.numberOfBlockAssignments()) {
+     		throw new RuntimeException("The maximum number of blocks per level cannot be less than the number of existing blocks in a level.");
+     	}
+     }
+   }
+   before getLevel {
+   if (index < 0 || index > numberOfLevels()){
+       	  throw new IndexOutOfBoundsException("Level must be between 1 and the number of levels in the current game.");
+     }
+   }
+   public Block findBlock(int id) {
+	  List<Block> blocks = this.getBlocks();
+	  for (Block block : blocks) {
+		  int blockId = block.getId();
+		  if (id == blockId) {
+			  return block;
+		  }
+	  }
+	  return null;
+  }
+  public Block getRandomBlock() {
+	  Random random = new Random();
+	  int index = random.nextInt(this.getBlocks().size());
+	  return this.getBlock(index);
+  }
+
+
+   public int maxNumberOfHorizontalBlocks(){            	                     
+ 	                  int maxNumberOfHorizontalBlocks = 0;   
+ 	                  int spaceForBlocks = Game.PLAY_AREA_SIDE - 2* Game.WALL_PADDING;	                  
+ 	                  while(true) {                      
+ 	                	  			  spaceForBlocks -= Block.SIZE;
+ 	                                  if(spaceForBlocks < 0) {
+ 	                                                  break;
+ 	                                  }
+ 	                                  maxNumberOfHorizontalBlocks++;                            
+ 	                                  spaceForBlocks -= Game.COLUMNS_PADDING;            
+ 	                  }  
+ 	                  return maxNumberOfHorizontalBlocks;
+   }
+   public int maxNumberOfVerticalBlocks(){
+	  	    int spaceForBlocks = Game.PLAY_AREA_SIDE - Game.WALL_PADDING - Paddle.VERTICAL_DISTANCE - Paddle.PADDLE_WIDTH;
+     	    int maxNumberOfVerticalBlocks = 0;                    
+     	    while(true) {
+                       spaceForBlocks -= Block.SIZE;
+                       if(spaceForBlocks < 0) {
+                          break;
+                       }
+                       maxNumberOfVerticalBlocks++;
+                       spaceForBlocks -= Game.ROW_PADDING;                  
+     
+      	 	}
+       		return maxNumberOfVerticalBlocks;
+   }
+     
+   * -- 1 Admin admin;
+   1 <@>- * Block blocks;
+   1 <@>- 1..99 Level levels;
+   1 <@>- * BlockAssignment blockAssignments;
+   1 <@>- 1 Ball ball;
+   1 <@>- 1 Paddle paddle;
+}
+
+class Block {
+   const Integer MIN_COLOR = 0;
+   const Integer MAX_COLOR = 255;
+   const Integer MIN_POINTS = 1;
+   const Integer MAX_POINTS = 1000; 
+   const Integer SIZE = 20;
+   autounique id;
+   Integer red;
+   Integer green;
+   Integer blue;
+   Integer points;
+   
+   before constructor {
+   	if (aRed < 0 || aRed > 255) {
+	  	throw new RuntimeException("Red must be between 0 and 255.");
+	}
+	if (aGreen < 0 || aGreen > 255) {
+	  	throw new RuntimeException("Green must be between 0 and 255.");
+	}
+	if (aBlue < 0 || aBlue > 255) {
+	  	throw new RuntimeException("Blue must be between 0 and 255.");
+	}
+	if(aPoints < 1 || aPoints > 1000){
+		throw new RuntimeException("Points must be between 1 and 1000.");
+	}
+   }
+   before setRed {
+   	if (aRed < 0 || aRed > 255) {
+	  	throw new RuntimeException("Red must be between 0 and 255.");
+	}
+   }
+   before setGreen {
+   	if (aGreen < 0 || aGreen > 255) {
+	  	throw new RuntimeException("Green must be between 0 and 255.");
+	}
+   }
+   before setBlue {
+   	if (aBlue < 0 || aBlue > 255) {
+	  	throw new RuntimeException("Blue must be between 0 and 255.");
+	}
+   }
+   before setPoints {
+   	if (aPoints < 1 || aPoints > 1000) {
+	  	throw new RuntimeException("Points must be between 1 and 1000.");
+	}
+   }
+}
+
+// random attribute not needed anymore
+// Each level is filled up with random blocks just before playing the level to reach the nrBlocksPerLevel defined in Game
+class Level {
+	public BlockAssignment findBlockAssignment (int gridHorizontalPosition, int gridVerticalPosition) {	
+		for (BlockAssignment assignment : this.getBlockAssignments()) {
+			int h = assignment.getGridHorizontalPosition();
+			int v = assignment.getGridVerticalPosition();
+			if(h == gridHorizontalPosition && v == gridVerticalPosition)
+			{
+				return assignment;
+			}
+		}
+	return null;
+  } 
+}
+
+class BlockAssignment {
+   depend ca.mcgill.ecse223.block.application.*;
+   Integer gridHorizontalPosition;
+   Integer gridVerticalPosition;
+   
+   before constructor {
+           if (aGridHorizontalPosition <= 0 || aGridHorizontalPosition > aGame.maxNumberOfHorizontalBlocks()) {
+            	    	throw new RuntimeException("GridHorizontalPosition can't be negative or greater than " + aGame.maxNumberOfHorizontalBlocks());
+            	    }
+            if (aGridVerticalPosition <= 0 || aGridVerticalPosition > aGame.maxNumberOfVerticalBlocks()) {
+            	    	throw new RuntimeException("GridVerticalPosition can't be negative or greater than " + aGame.maxNumberOfVerticalBlocks());
+            	    }
+   }
+   
+   before setGridVerticalPosition{
+   	     if (aGridVerticalPosition <= 0 || aGridVerticalPosition > game.maxNumberOfVerticalBlocks()) {
+ 	    	throw new RuntimeException("GridVerticalPosition can't be negative or greater than " + game.maxNumberOfVerticalBlocks());
+ 	    }
+   }
+   
+   before setGridHorizontalPosition{
+         if (aGridHorizontalPosition <= 0 || aGridHorizontalPosition > game.maxNumberOfHorizontalBlocks()) {
+	    	throw new RuntimeException("GridHorizontalPosition can't be negative or greater than " + game.maxNumberOfHorizontalBlocks());
+	    }
+   }
+   * -- 1 Level level;
+   * -- 1 Block block;
+}
+
+class Ball {
+   const Integer BALL_DIAMETER = 10;
+   Integer minBallSpeedX;
+   Integer minBallSpeedY;
+   before constructor, setMinBallSpeedX {
+     if (aMinBallSpeedX < 0) {
+     	throw new RuntimeException("The minimum speed of the ball must be greater than zero.");
+     }
+   } 
+   before constructor, setMinBallSpeedY {
+     if (aMinBallSpeedY < 0) {
+     	throw new RuntimeException("The minimum speed of the ball must be greater than zero.");
+     }
+   }
+   Double ballSpeedIncreaseFactor;
+   before constructor, setBallSpeedIncreaseFactor {
+     if (aBallSpeedIncreaseFactor <= 0) {
+     	throw new RuntimeException("The speed increase factor of the ball must be greater than zero.");
+     }
+   }
+}
+
+class Paddle {
+   const Integer PADDLE_WIDTH = 5;
+   const Integer VERTICAL_DISTANCE = 30;
+   Integer maxPaddleLength;
+   before constructor, setMaxPaddleLength {
+     if (aMaxPaddleLength <= 0 || aMaxPaddleLength > 390) {
+     	throw new RuntimeException("The maximum length of the paddle must be greater than zero and less than or equal to 390.");
+     }
+   }
+   Integer minPaddleLength;
+   before constructor, setMinPaddleLength {
+     if (aMinPaddleLength <= 0) {
+     	throw new RuntimeException("The minimum length of the paddle must be greater than zero.");
+     }
+   }
+}
